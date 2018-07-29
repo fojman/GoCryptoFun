@@ -5,8 +5,16 @@ import (
 	"os"
 )
 
-func ensureExists(path string) {
+func exists(path string) bool {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return false
+	}
+
+	return true
+}
+
+func ensureExists(path string) {
+	if exists(path) == false {
 		os.Mkdir(path, os.ModePerm)
 	}
 }
