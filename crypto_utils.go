@@ -136,3 +136,15 @@ func processFile(file string, process Process) (string, error) {
 
 	return dstFilePath, nil
 }
+
+func newEncKey() *[32]byte {
+	key := [32]byte{}
+
+	// 32 bytes key(32*8bytes)
+	_, err := io.ReadFull(rand.Reader, key[:])
+	if err != nil {
+		panic(err)
+	}
+
+	return &key
+}
