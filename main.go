@@ -1,13 +1,12 @@
 package main
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"flag"
 	"fmt"
-	"io"
 	"os"
+	"strings"
+	"time"
+
+	"github.com/opesun/goquery"
 )
 
 /*
@@ -28,89 +27,135 @@ const (
 	Invalid
 )
 
-func createAes(buf []byte, aesKey string) ([]byte, int) {
+const (
+	BufferSize = 4096
+	IvSize     = 16
+)
 
-	// Byte array of the string
-	plaintext := buf
+func sleepAndSay(sayWhat string, after time.Duration) {
+	go func() {
+		s := time.Now()
+		time.Sleep(after)
+		e := time.Now()
 
-	// Key
-	key := []byte(aesKey)
+		fmt.Printf("[%s] - %s\n", e.Sub(s), sayWhat)
 
-	// Create the AES cipher
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		panic(err)
-	}
-
-	// Empty array of 16 + plaintext length
-	// Include the IV at the beginning
-	ciphertext := make([]byte, aes.BlockSize+len(plaintext))
-
-	// Slice of first 16 bytes
-	iv := ciphertext[:aes.BlockSize]
-
-	// Write 16 rand bytes to fill iv
-	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-		panic(err)
-	}
-
-	// Return an encrypted stream
-	stream := cipher.NewCFBEncrypter(block, iv)
-
-	// Encrypt bytes from plaintext to ciphertext
-	stream.XORKeyStream(ciphertext[aes.BlockSize:], plaintext)
-
-	return nil, string(ciphertext)
+	}()
 }
 
-func aesEncryptBuf(inBuf []byte, len int) ([]byte, int) {
+func grab() <-chan string {
+	c := make(chan string)
 
+	for i := 0; i < 10; i++ {
+		go func() {
+			for {
+				x, err := goquery.ParseUrl("http://vpustotu.ru/moderation/")
+				if err == nil {
+					if s := strings.TrimSpace(x.Find(".fi_text").Text()); s != "" {
+						c <- s
+					}
+				}
+
+				time.Sleep(2000 * time.Millisecond)
+			}
+		}()
+	}
+	fmt.Println("Spawned 10 go Grabber threads...")
+
+	return c
 }
 
 func main() {
 
-	//mode := flag.String("mode", "generate", "Utility working modes: crypt|generate, default: generate")
-	//dir := flag.String("dir", "./", "Utility ouput direcatory, i.e. for storing keys, etc")
+	qChan := grab()
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
 
-	srcFile := flag.String("sfile", "", "source file location")
-	//dstFile := flag.String("dfile", "", "dest file location")
+	for i := 0; i < 10; i++ {
+		quote := <-qChan
 
-	// parse command line
-	flag.Parse()
-	if false == exists(*srcFile) {
-		fmt.Println("ERR: source file does not exit")
-		flag.PrintDefaults()
-		os.Exit(1)
+		fmt.Printf("----------------------------------\n%s\n---------------------------------\n", quote)
 	}
 
-	path, err := processFile(*srcFile, "0123456789012345")
-	if err != nil {
-		panic(err)
+	for {
+
+		select {
+		case <-ticker.C:
+			{
+				fmt.Println("tick")
+			}
+		case q := <-qChan:
+			{
+				fmt.Println(q)
+			}
+		}
 	}
 
-	fmt.Printf("file encrypted to: %s", path)
-
+	fmt.Scanln()
 	/*
-		if *mode != "gen" {
-			flag.PrintDefaults()
-			os.Exit(1)
+
+		inFile, err := os.Open("c:\\Users\\ievgen_iukhymovych\\Downloads\\Net.Level_3.09.Winter_2017.zip")
+		if err != nil {
+			panic(err)
 		}
 
-		ensureExists(*dir)
+		outFile, err := os.Create("c:\\temp\\Encypted.aes")
+		if err != nil {
+			panic(err)
+		}
 
-		fmt.Println("Generating RSA PKI keys...")
+		iv := make([]byte, IvSize)
+		_, err = rand.Read(iv)
+		if err != nil {
+			panic(err)
+		}
 
-		priv, pub := generateKeys()
+		keyAes := []byte("1234567890098765")
+		aes, err := aes.NewCipher(keyAes)
+		if err != nil {
+			panic(err)
+		}
 
-		fmt.Printf("Storing keys at: %s\n", *dir)
+		ctr := cipher.NewCTR(aes, iv)
 
-		privStr := rsaPrivKeyToPemString(priv, "string_in")
-		pubStr, _ := rsaPubKeyToPemString(pub)
+		buf := make([]byte, BufferSize)
+		for {
+			n, err := inFile.Read(buf)
+			if err != nil && err != io.EOF {
+				panic(err)
+			}
 
-		privPath := filepath.Join(*dir, "private.key")
-		pubPath := filepath.Join(*dir, "public.key")
-		writeStringToFile(privStr, privPath)
-		writeStringToFile(pubStr, pubPath) */
+			outBuf := make([]byte, n)
+			ctr.XORKeyStream(outBuf, buf[:n])
+
+			outFile.Write(outBuf)
+
+			if err == io.EOF {
+				break
+			}
+		}
+
+
+			if *mode != "gen" {
+				flag.PrintDefaults()
+				os.Exit(1)
+			}
+
+			ensureExists(*dir)
+
+			fmt.Println("Generating RSA PKI keys...")
+
+			priv, pub := generateKeys()
+
+			fmt.Printf("Storing keys at: %s\n", *dir)
+
+			privStr := rsaPrivKeyToPemString(priv, "string_in")
+			pubStr, _ := rsaPubKeyToPemString(pub)
+
+			privPath := filepath.Join(*dir, "private.key")
+			pubPath := filepath.Join(*dir, "public.key")
+			writeStringToFile(privStr, privPath)
+			writeStringToFile(pubStr, pubPath) */
 
 	fmt.Println("Keys generated..")
 
