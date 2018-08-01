@@ -50,7 +50,11 @@ func (self *Decoder) Next() (res interface{}, err error) {
 }
 
 func (self *Decoder) parseInt() (res interface{}, err error) {
-
+	// i1345555e
+	c := self.stream[self.pos]
+	if c != 'i' {
+		return nil, errors.New("'i' expected")
+	}
 }
 
 // isDigit
