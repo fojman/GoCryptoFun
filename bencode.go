@@ -104,7 +104,21 @@ func (s *Stream) readInt() (interface{}, error) {
 	}
 	// parse digit
 	value := toInt(digits)
+
+	// move 1 byte forward (pass over i...E)
+	_, err = s.readByte()
+
 	return value, nil
+}
+
+func (s *Stream) unread() error {
+	if s.pos == 0 {
+		return errors.New("cannot unread at the beginning")
+	}
+
+	s.pos--
+
+	return nil
 }
 
 func (s *Stream) readString() (string, error) {
@@ -136,6 +150,10 @@ func (s *Stream) readList() (interface{}, error) {
 	return list, nil
 }
 
+func (s *Stream) current() byte {
+	return s.buf[s.pos]
+}
+
 func (s *Stream) readDictionary() (interface{}, error) {
 
 	dict := make(map[string]interface{})
@@ -149,35 +167,49 @@ func (s *Stream) readDictionary() (interface{}, error) {
 		return nil, errors.New("'d' -dictionary expected")
 	}
 
-	// d 3:key e
-	key, err := s.readString()
-	if err != nil {
-		return nil, err
-	}
+	for {
 
-	ch, err := s.readByte()
-	if err != nil {
-		return nil, err
-	}
+		// d 3:key e
+		key, err := s.readString()
+		if err != nil {
+			return nil, err
+		}
 
-	item, err := s.parseNext(ch)
-	if err != nil {
-		return nil, err
-	}
+		ch, err := s.readByte()
+		if err != nil {
+			return nil, err
+		}
 
-	dict[key] = item
+		item, err := s.parseNext(ch)
+		if err != nil {
+			return nil, err
+		}
+		dict[key] = item
+
+		if s.current() == 'e' {
+			break
+		}
+	}
 
 	return dict, nil
 }
 
 func (s *Stream) parseNext(ch byte) (item interface{}, err error) {
 
-	switch ch {
-	case 'i':
+	switch {
+	case isDigit(ch):
+		{
+			if err := s.unread(); err != nil {
+				return nil, err
+			}
+			return s.readString()
+		}
+
+	case ch == 'i':
 		return s.readInt()
-	case 'l':
+	case ch == 'l':
 		return s.readList()
-	case 'd':
+	case ch == 'd':
 		return s.readDictionary()
 	default:
 		return nil, errors.New("ch")

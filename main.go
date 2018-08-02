@@ -116,8 +116,7 @@ func spawnWorkers(in chan string) {
 
 func main() {
 
-	s := "d2:XYi123ee"
-
+	s := "d1:a1:b1:ci7ee"
 	_, err := decode(s)
 	if err != nil {
 		os.Exit(1)
