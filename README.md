@@ -1,2 +1,2 @@
 # GoCryptoFun
-learn cryptography with Golang
+learn cryptography+torrent with Golang

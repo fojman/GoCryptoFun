@@ -116,11 +116,14 @@ func spawnWorkers(in chan string) {
 
 func main() {
 
-	s := "d1:a1:b1:ci7ee"
-	_, err := decode(s)
+	s := "d4:infoi123e3:dicd2:xxi321eee"
+	d, err := decode(s)
 	if err != nil {
 		os.Exit(1)
 	}
+
+	l := d["evg"]
+	_ = l
 
 	/*
 		root := "c:\\tmp"
