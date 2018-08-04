@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -116,8 +117,12 @@ func spawnWorkers(in chan string) {
 
 func main() {
 
-	s := "d4:infoi123e3:dicd2:xxi321eee"
-	d, err := decode(s)
+	bytes, err := ioutil.ReadFile("./123.torrent")
+	if err != nil {
+		os.Exit(1)
+	}
+
+	d, err := decode(string(bytes))
 	if err != nil {
 		os.Exit(1)
 	}
