@@ -1,7 +1,11 @@
 package main
 
 import (
+	"crypto/md5"
+	"encoding/hex"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -65,97 +69,175 @@ func grab() <-chan string {
 	return c
 }
 
+func hashFile(file string) (string, error) {
+	var md5hash string
+
+	if exists(file) == false {
+		return md5hash, errors.New("file does not exist")
+	}
+
+	f, err := os.Open(file)
+	if err != nil {
+		return md5hash, errors.New("cannot open file")
+	}
+	defer f.Close()
+
+	hash := md5.New()
+
+	if _, err := io.Copy(hash, f); err != nil {
+		return md5hash, err
+	}
+
+	md5hash = hex.EncodeToString(hash.Sum(nil))
+
+	return md5hash, nil
+}
+
+func spawnWorkers(in chan string) {
+	for index := 0; index < 5; index++ {
+		go func() {
+			for {
+				select {
+				case filePath := <-in:
+					{
+						fmt.Printf("Start hasing of [%s]\n", filePath)
+						/*hash, err := hashFile(filePath)
+						if err != nil {
+							fmt.Printf("Error during hasing file:%s\n", filePath)
+						} else {
+							fmt.Printf("file=%s -> hash(%s)\n", filePath, hash)
+						} */
+					}
+				}
+			}
+		}()
+	}
+}
+
 func main() {
 
-	qChan := grab()
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-
-	for i := 0; i < 10; i++ {
-		quote := <-qChan
-
-		fmt.Printf("----------------------------------\n%s\n---------------------------------\n", quote)
+	s := "d1:a1:b1:ci7ee"
+	_, err := decode(s)
+	if err != nil {
+		os.Exit(1)
 	}
 
-	for {
-
-		select {
-		case <-ticker.C:
-			{
-				fmt.Println("tick")
-			}
-		case q := <-qChan:
-			{
-				fmt.Println(q)
-			}
-		}
-	}
-
-	fmt.Scanln()
 	/*
+		root := "c:\\tmp"
 
-		inFile, err := os.Open("c:\\Users\\ievgen_iukhymovych\\Downloads\\Net.Level_3.09.Winter_2017.zip")
-		if err != nil {
-			panic(err)
-		}
-
-		outFile, err := os.Create("c:\\temp\\Encypted.aes")
-		if err != nil {
-			panic(err)
-		}
-
-		iv := make([]byte, IvSize)
-		_, err = rand.Read(iv)
-		if err != nil {
-			panic(err)
-		}
-
-		keyAes := []byte("1234567890098765")
-		aes, err := aes.NewCipher(keyAes)
-		if err != nil {
-			panic(err)
-		}
-
-		ctr := cipher.NewCTR(aes, iv)
-
-		buf := make([]byte, BufferSize)
-		for {
-			n, err := inFile.Read(buf)
-			if err != nil && err != io.EOF {
-				panic(err)
+		//fileList := []string{}
+		toProcessChan := make(chan string)
+		spawnWorkers(toProcessChan)
+		err := filepath.Walk(root, func(path string, f os.FileInfo, err error) error {
+			//fileList = append(fileList, path)
+			if f.IsDir() {
+				//fmt.Printf("DIR:%s\n", path)
+			} else {
+				//fmt.Printf("file=%s, size=%d\n", path, f.Size())
+				if f.Size() > 1024*1024 {
+					//fmt.Printf("File size bigger 1Mb pusing to pipe for processing==> %s", path)
+					toProcessChan <- path
+				}
 			}
 
-			outBuf := make([]byte, n)
-			ctr.XORKeyStream(outBuf, buf[:n])
+			return nil
+		})
 
-			outFile.Write(outBuf)
-
-			if err == io.EOF {
-				break
-			}
+		if err != nil {
+			panic(err)
 		}
 
+		fmt.Scanln()
 
-			if *mode != "gen" {
-				flag.PrintDefaults()
-				os.Exit(1)
+			qChan := grab()
+			ticker := time.NewTicker(500 * time.Millisecond)
+			defer ticker.Stop()
+
+			for i := 0; i < 10; i++ {
+				quote := <-qChan
+
+				fmt.Printf("----------------------------------\n%s\n---------------------------------\n", quote)
 			}
 
-			ensureExists(*dir)
+			for {
 
-			fmt.Println("Generating RSA PKI keys...")
+				select {
+				case <-ticker.C:
+					{
+						fmt.Println("tick")
+					}
+				case q := <-qChan:
+					{
+						fmt.Println(q)
+					}
+				}
+			}
 
-			priv, pub := generateKeys()
+			fmt.Scanln()
 
-			fmt.Printf("Storing keys at: %s\n", *dir)
 
-			privStr := rsaPrivKeyToPemString(priv, "string_in")
-			pubStr, _ := rsaPubKeyToPemString(pub)
+				inFile, err := os.Open("c:\\Users\\ievgen_iukhymovych\\Downloads\\Net.Level_3.09.Winter_2017.zip")
+				if err != nil {
+					panic(err)
+				}
 
-			privPath := filepath.Join(*dir, "private.key")
-			pubPath := filepath.Join(*dir, "public.key")
-			writeStringToFile(privStr, privPath)
-			writeStringToFile(pubStr, pubPath) */
+				outFile, err := os.Create("c:\\temp\\Encypted.aes")
+				if err != nil {
+					panic(err)
+				}
+
+				iv := make([]byte, IvSize)
+				_, err = rand.Read(iv)
+				if err != nil {
+					panic(err)
+				}
+
+				keyAes := []byte("1234567890098765")
+				aes, err := aes.NewCipher(keyAes)
+				if err != nil {
+					panic(err)
+				}
+
+				ctr := cipher.NewCTR(aes, iv)
+
+				buf := make([]byte, BufferSize)
+				for {
+					n, err := inFile.Read(buf)
+					if err != nil && err != io.EOF {
+						panic(err)
+					}
+
+					outBuf := make([]byte, n)
+					ctr.XORKeyStream(outBuf, buf[:n])
+
+					outFile.Write(outBuf)
+
+					if err == io.EOF {
+						break
+					}
+				}
+
+
+					if *mode != "gen" {
+						flag.PrintDefaults()
+						os.Exit(1)
+					}
+
+					ensureExists(*dir)
+
+					fmt.Println("Generating RSA PKI keys...")
+
+					priv, pub := generateKeys()
+
+					fmt.Printf("Storing keys at: %s\n", *dir)
+
+					privStr := rsaPrivKeyToPemString(priv, "string_in")
+					pubStr, _ := rsaPubKeyToPemString(pub)
+
+					privPath := filepath.Join(*dir, "private.key")
+					pubPath := filepath.Join(*dir, "public.key")
+					writeStringToFile(privStr, privPath)
+					writeStringToFile(pubStr, pubPath) */
 
 	fmt.Println("Keys generated..")
 

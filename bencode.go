@@ -1,6 +1,9 @@
 package main
 
-import "errors"
+import (
+	"bufio"
+	"errors"
+)
 
 /*
 	- i4e
@@ -10,74 +13,247 @@ import "errors"
 */
 
 type Decoder struct {
-	stream []byte
-	pos    int
+	bufio.Reader
 }
 
-func (self *Decoder) IsEos() bool {
-	if self.pos >= len(self.stream) {
+type Stream struct {
+	pos int    // current position
+	buf []byte // bencode data
+}
+
+// NewStream .ctor(benc string)
+func NewStream(bs string) *Stream {
+	return &Stream{0, []byte(bs)}
+}
+
+// IsEOS end of stream?
+func (s *Stream) IsEOS() bool {
+	if s.pos >= len(s.buf) {
 		return true
 	}
 
 	return false
 }
 
-func (self *Decoder) Next() (res interface{}, err error) {
-
-	if self.IsEos() {
-		return nil, errors.New("Cannot Next() on EOS")
+func (s *Stream) readByte() (byte, error) {
+	if s.IsEOS() {
+		return 0, errors.New("cannot read from empty stream")
 	}
 
-	switch c := self.stream[self.pos]; {
-	case c == 'i':
-		{
-
-		}
-
-	case c >= '0' && c <= '9':
-		{
-
-		}
-	case c == 'l':
-		{
-
-		}
-	case c == 'd':
-		{
-
-		}
-	} //swith
+	b := s.buf[s.pos]
+	s.pos++ // move to next byte
+	return b, nil
 }
 
-func (self *Decoder) parseInt() (res interface{}, err error) {
-	// i1345555e
-	c := self.stream[self.pos]
-	if c != 'i' {
-		return nil, errors.New("'i' expected")
+func (s *Stream) read(inBuf []byte) error {
+
+	for index := 0; index < len(inBuf); index++ {
+		b, err := s.readByte()
+		if err != nil {
+			return err
+		}
+		inBuf[index] = b
 	}
+	return nil
 }
 
-// isDigit
-func IsDigit(c byte) bool {
-	return c >= '0' && c <= '9'
-}
+func (s *Stream) readUntil(until byte) ([]byte, error) {
+	if s.IsEOS() {
+		return nil, errors.New("readUntil: end of stream")
+	}
 
-func (self *Decoder) parseString() (res interface{}, err error) {
-
-	// <len>:<stringgggg.....>
-	// 3:xyz
-	strLen := 0
-	value := 0
+	start := s.pos
+	var i int
 	for {
-		d := self.stream[self.pos]
-		if d == ':' {
+		if s.IsEOS() {
+			return nil, errors.New("readUntil: end of stream")
+		}
+		// d 2:xy 2:zx e
+		c := s.buf[s.pos]
+		if c == until {
 			break
 		}
-		digit := (int(d) - int('0'))
-		value := value*10 + digit
+		i++
+		s.pos++
 
-		// check len
-		self.pos++
 	}
-	return string(self.stream[self.pos:value]), nil
+	end := start + i
+	return s.buf[start:end], nil
+}
+
+func isDigit(b byte) bool {
+	return b >= '0' && b <= '9'
+}
+
+func toInt(buf []byte) int {
+
+	var inValue int
+	for _, element := range buf {
+		d := element - '0'
+		inValue = inValue * 10
+		inValue = inValue + int(d)
+	}
+	//_ = inValue
+	return inValue
+}
+
+func (s *Stream) readInt() (interface{}, error) {
+	digits, err := s.readUntil('e')
+	if err != nil {
+		return nil, err
+	}
+	// parse digit
+	value := toInt(digits)
+
+	// move 1 byte forward (pass over i...E)
+	_, err = s.readByte()
+
+	return value, nil
+}
+
+func (s *Stream) unread() error {
+	if s.pos == 0 {
+		return errors.New("cannot unread at the beginning")
+	}
+
+	s.pos--
+
+	return nil
+}
+
+func (s *Stream) readString() (string, error) {
+	// 5:abcyy
+
+	digits, err := s.readUntil(':')
+	if err != nil {
+		return "", err
+	}
+
+	// skip ':'
+	if _, err := s.readByte(); err != nil {
+		return "", err
+	}
+
+	len := toInt(digits)
+	strBuf := make([]byte, len)
+	if err := s.read(strBuf); err != nil {
+		return "", err
+	}
+
+	return string(strBuf), nil
+}
+
+func (s *Stream) readList() ([]interface{}, error) {
+
+	var list []interface{}
+	// [l i1e 3:xyz e]
+	//  ^
+	//  |
+	for {
+		if s.current() == 'e' {
+			break
+		}
+
+		ch, err := s.readByte()
+		if err != nil {
+			return nil, err
+		}
+
+		item, err := s.parseNext(ch)
+
+		list = append(list, item)
+
+	}
+
+	return list, nil
+}
+
+func (s *Stream) current() byte {
+	return s.buf[s.pos]
+}
+
+func (s *Stream) readDictionary() (map[string]interface{}, error) {
+
+	dict := make(map[string]interface{})
+
+	shouldBeD, err := s.readByte()
+	if err != nil {
+		return nil, err
+	}
+
+	if shouldBeD != 'd' {
+		return nil, errors.New("Dict shoud start with 'd' char")
+	}
+
+	for {
+
+		// d 3:key e
+		key, err := s.readString()
+		if err != nil {
+			return nil, err
+		}
+
+		ch, err := s.readByte()
+		if err != nil {
+			return nil, err
+		}
+
+		item, err := s.parseNext(ch)
+		if err != nil {
+			return nil, err
+		}
+		dict[key] = item
+
+		if s.current() == 'e' {
+			break
+		}
+	}
+
+	return dict, nil
+}
+
+func (s *Stream) parseNext(ch byte) (item interface{}, err error) {
+
+	switch {
+	case isDigit(ch):
+		{
+			if err := s.unread(); err != nil {
+				return nil, err
+			}
+			return s.readString()
+		}
+
+	case ch == 'i':
+		return s.readInt()
+	case ch == 'l':
+		return s.readList()
+	case ch == 'd':
+		{
+			_ = s.unread() // do check
+			return s.readDictionary()
+		}
+
+	default:
+		return nil, errors.New("ch")
+	}
+}
+
+func decode(str string) (map[string]interface{}, error) {
+	if len(str) <= 0 {
+		return nil, errors.New("Empty Bencode string passed in")
+	}
+
+	b := []byte(str)
+	if b[0] != 'd' {
+		return nil, errors.New("first byte must be 'd'")
+	}
+
+	stream := NewStream(str)
+
+	dict, err := stream.readDictionary()
+	if err != nil {
+		return nil, err
+	}
+
+	return dict, nil
 }
