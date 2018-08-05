@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -117,6 +118,7 @@ func spawnWorkers(in chan string) {
 
 func main() {
 
+	runtime.GOMAXPROCS(4)
 	bytes, err := ioutil.ReadFile("./123.torrent")
 	if err != nil {
 		os.Exit(1)

@@ -151,7 +151,7 @@ func (s *Stream) readList() ([]interface{}, error) {
 	//  |
 	for {
 		if s.current() == 'e' {
-			break
+			//break // list(  list (), list() , ...)
 		}
 
 		ch, err := s.readByte()
