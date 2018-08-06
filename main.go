@@ -116,6 +116,10 @@ func spawnWorkers(in chan string) {
 	}
 }
 
+const (
+	Sha1LenBytes = 20
+)
+
 func main() {
 
 	runtime.GOMAXPROCS(4)
@@ -129,9 +133,29 @@ func main() {
 		os.Exit(1)
 	}
 
-	l := d["evg"]
-	_ = l
+	info := d["info"]
 
+	v, ok := info.(map[string]interface{})
+	if !ok {
+		panic("cannot cast")
+	}
+
+	fileLen := v["length"]
+	pieceLen := v["piece length"]
+
+	piecesStr := v["pieces"].(string)
+
+	nPices := len(piecesStr) / Sha1LenBytes
+	for index := 0; index < nPices; index++ {
+		begin := index * Sha1LenBytes
+		end := begin + Sha1LenBytes
+		sha1 := piecesStr[begin:end]
+
+		bytes := []byte(sha1)
+		fmt.Printf("SHA1: %s, %d\n", hex.EncodeToString(bytes), index)
+	}
+
+	_, _, _ = fileLen, pieceLen, piecesStr
 	/*
 		root := "c:\\tmp"
 

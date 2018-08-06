@@ -150,13 +150,14 @@ func (s *Stream) readList() ([]interface{}, error) {
 	//  ^
 	//  |
 	for {
-		if s.current() == 'e' {
-			//break // list(  list (), list() , ...)
-		}
 
 		ch, err := s.readByte()
 		if err != nil {
 			return nil, err
+		}
+
+		if ch == 'e' { // L <one_element> E
+			break
 		}
 
 		item, err := s.parseNext(ch)
@@ -186,7 +187,6 @@ func (s *Stream) readDictionary() (map[string]interface{}, error) {
 	}
 
 	for {
-
 		// d 3:key e
 		key, err := s.readString()
 		if err != nil {
@@ -205,6 +205,8 @@ func (s *Stream) readDictionary() (map[string]interface{}, error) {
 		dict[key] = item
 
 		if s.current() == 'e' {
+			// we at the end of dict
+			_, _ = s.readByte() // skip this 'e'
 			break
 		}
 	}
@@ -234,7 +236,7 @@ func (s *Stream) parseNext(ch byte) (item interface{}, err error) {
 		}
 
 	default:
-		return nil, errors.New("ch")
+		return nil, errors.New("not a int/dict/list/string")
 	}
 }
 
