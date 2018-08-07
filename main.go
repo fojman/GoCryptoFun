@@ -6,9 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
-	"runtime"
 	"strings"
 	"time"
 
@@ -122,40 +120,57 @@ const (
 
 func main() {
 
-	runtime.GOMAXPROCS(4)
-	bytes, err := ioutil.ReadFile("./123.torrent")
+	s := "c:\\Users\\ievgen_iukhymovych\\Downloads\\Net.Level_3.09.Winter_2017.zip"
+
+	reader, err := OpenFileAsMemMapper(s)
 	if err != nil {
-		os.Exit(1)
+		panic(err)
 	}
 
-	d, err := decode(string(bytes))
+	oneMegBuf := make([]byte, 1024*1024)
+	n, err := reader.ReadAt(oneMegBuf, 0)
 	if err != nil {
-		os.Exit(1)
+		panic(err)
 	}
 
-	info := d["info"]
+	fmt.Printf("Rread=%d from MMAPed file", n)
+	/*
+		runtime.GOMAXPROCS(4)
+		bytes, err := ioutil.ReadFile("./123.torrent")
+		if err != nil {
+			os.Exit(1)
+		}
 
-	v, ok := info.(map[string]interface{})
-	if !ok {
-		panic("cannot cast")
-	}
+		d, err := decode(string(bytes))
+		if err != nil {
+			os.Exit(1)
+		}
 
-	fileLen := v["length"]
-	pieceLen := v["piece length"]
+		info := d["info"]
 
-	piecesStr := v["pieces"].(string)
+		v, ok := info.(map[string]interface{})
+		if !ok {
+			panic("cannot cast")
+		}
 
-	nPices := len(piecesStr) / Sha1LenBytes
-	for index := 0; index < nPices; index++ {
-		begin := index * Sha1LenBytes
-		end := begin + Sha1LenBytes
-		sha1 := piecesStr[begin:end]
+		fileLen := v["length"]
+		pieceLen := v["piece length"]
 
-		bytes := []byte(sha1)
-		fmt.Printf("SHA1: %s, %d\n", hex.EncodeToString(bytes), index)
-	}
+		piecesStr := v["pieces"].(string)
 
-	_, _, _ = fileLen, pieceLen, piecesStr
+		nPices := len(piecesStr) / Sha1LenBytes
+		for index := 0; index < nPices; index++ {
+			begin := index * Sha1LenBytes
+			end := begin + Sha1LenBytes
+			sha1 := piecesStr[begin:end]
+
+			bytes := []byte(sha1)
+			fmt.Printf("SHA1: %s, %d\n", hex.EncodeToString(bytes), index)
+		}
+
+		_, _, _ = fileLen, pieceLen, piecesStr
+
+	*/
 	/*
 		root := "c:\\tmp"
 
