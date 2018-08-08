@@ -2,12 +2,15 @@ package main
 
 import (
 	"crypto/md5"
+	"crypto/sha1"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/opesun/goquery"
@@ -116,6 +119,7 @@ func spawnWorkers(in chan string) {
 
 const (
 	Sha1LenBytes = 20
+	OneMegaByte  = 1024 * 1024
 )
 
 func main() {
@@ -127,13 +131,69 @@ func main() {
 		panic(err)
 	}
 
-	oneMegBuf := make([]byte, 1024*1024)
-	n, err := reader.ReadAt(oneMegBuf, 0)
-	if err != nil {
-		panic(err)
+	buf := make([]byte, OneMegaByte)
+	// n, err := reader.ReadAt(oneMegBuf, 0)
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	// fmt.Printf("Rread=%d from MMAPed file", n)
+
+	start := time.Now()
+
+	sha1Hasher := sha1.New()
+	blockCount := int(reader.size / OneMegaByte)
+	if reader.size%OneMegaByte != 0 {
+		blockCount = blockCount + 1
+	}
+	var offset int64 = 0
+	for index := 0; index < blockCount; index++ {
+		n, err := reader.ReadAt(buf, offset)
+		if err != nil && err != io.EOF {
+			panic("something went wrong")
+		}
+		sha1Hasher.Write(buf[:n])
+		// move on
+		offset = offset + int64(n)
 	}
 
-	fmt.Printf("Rread=%d from MMAPed file", n)
+	sha1Ha := sha1Hasher.Sum(nil)
+	delta := time.Since(start)
+	fmt.Printf("\nhash of [%s] is [%s] in [%f]\n", s, hex.EncodeToString(sha1Ha), delta.Seconds())
+
+	fmt.Println("Going to hash full dir with all files more than 50Megs of size...")
+
+	files, err := ioutil.ReadDir("c:\\Users\\ievgen_iukhymovych\\Downloads")
+	if err != nil {
+		panic("cannot readdir()")
+	}
+
+	dataCh := make(chan string)
+	group := sync.WaitGroup
+
+	for index := 0; index < 5; index++ {
+		go func() {
+			path := <-dataCh
+
+			fmt.Println(path)
+		}()
+	}
+
+	for _, file := range files {
+		if file.Size() >= OneMegaByte*10 {
+			// send name to processeor
+
+			dataCh <- file.Name()
+		}
+	}
+
+	// wait for all job done
+
+	// get list of files
+	// spawn 4 hash theread
+	// push job
+	// wain till end
+
 	/*
 		runtime.GOMAXPROCS(4)
 		bytes, err := ioutil.ReadFile("./123.torrent")

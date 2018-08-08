@@ -15,6 +15,7 @@ const (
 
 type ReaderAt struct {
 	data []byte // io.ReaderAt
+	size int64
 }
 
 func (r *ReaderAt) ReadAt(readBuf []byte, offset int64) (readBytes int, err error) {
@@ -77,5 +78,5 @@ func OpenFileAsMemMapper(filePath string) (*ReaderAt, error) {
 
 	data := (*[maxBytes]byte)(unsafe.Pointer(ptr))[:size]
 
-	return &ReaderAt{data: data}, nil
+	return &ReaderAt{data: data, size: size}, nil
 }
